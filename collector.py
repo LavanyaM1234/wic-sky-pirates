@@ -1,12 +1,12 @@
+# collector.py
 from kubernetes import client, config
-import time
 
 # Load kubeconfig
 config.load_kube_config()
 v1 = client.CoreV1Api()
 
-def check_pod_health():
-    print("\n--- Checking Pod Health ---")
+def get_pod_health():
+    result = []
     pods = v1.list_pod_for_all_namespaces(watch=False)
 
     for pod in pods.items:
@@ -14,30 +14,34 @@ def check_pod_health():
         namespace = pod.metadata.namespace
         phase = pod.status.phase
 
-        # 1️⃣ PHASE CHECK
-        if phase != "Running":
-            print(f"[PHASE ISSUE] {pod_name} ({namespace}) → {phase}")
+        pod_report = {
+            "pod": pod_name,
+            "namespace": namespace,
+            "phase": phase,
+            "issues": []
+        }
 
-        # 2️⃣ CONTAINER STATUS CHECKS
+        # Phase issue
+        if phase != "Running":
+            pod_report["issues"].append(f"Phase issue: {phase}")
+
+        # Container checks
         if pod.status.container_statuses:
             for c in pod.status.container_statuses:
-
-                # CrashLoopBackOff / ImagePullBackOff / ErrImagePull
+                
                 if c.state.waiting:
                     reason = c.state.waiting.reason
                     if reason:
-                        print(f"[WAITING] {pod_name} → {reason}")
+                        pod_report["issues"].append(f"Waiting: {reason}")
 
-                # OOMKilled or other terminations
                 if c.state.terminated:
                     reason = c.state.terminated.reason
                     if reason:
-                        print(f"[TERMINATED] {pod_name} → {reason}")
+                        pod_report["issues"].append(f"Terminated: {reason}")
 
-                # Containers not ready
                 if not c.ready:
-                    print(f"[NOT READY] {pod_name} → container not ready")
+                    pod_report["issues"].append("Container not ready")
 
-while True:
-    check_pod_health()
-    time.sleep(5)
+        result.append(pod_report)
+
+    return result
