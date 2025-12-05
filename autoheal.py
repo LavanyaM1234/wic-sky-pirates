@@ -5,7 +5,8 @@ from typing import List, Dict, Any, Optional
 import requests
 from kubernetes import client, config
 
-STATUS_ENDPOINT = "http://your-fastapi-host:port/api/pod-status"  
+STATUS_ENDPOINT = "http://212.2.244.14:8000/pod"  
+print("correct api")
 POLL_INTERVAL = 3 
 COOLDOWN = 10  
 RESTART_THRESHOLD = 2  
@@ -160,19 +161,23 @@ def maybe_autoscale(namespace: str, pod_name: str, flags: Dict[str, Any]) -> Non
         autoscale_owning_deployment(namespace, pod_name)
 
 
-def fetch_status() -> List[Dict[str, Any]]:
-   
+def fetch_status():
     try:
         resp = requests.get(STATUS_ENDPOINT, timeout=5)
         resp.raise_for_status()
         data = resp.json()
-       
+
         if isinstance(data, list):
             return data
-        if isinstance(data, dict) and "items" in data:
-            return data["items"]
-       
+
+        if isinstance(data, dict):
+            if "items" in data:
+                return data["items"]
+            if "pods" in data:
+                return data["pods"]   # <-- FIX HERE
+
         return []
+
     except requests.RequestException as e:
         logging.error(f"Failed to fetch status from endpoint: {e}")
         return []
